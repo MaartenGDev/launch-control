@@ -27,12 +27,12 @@ export default class GeolocationExample extends React.Component<Props, State> {
                 await this.setCurrentPosition(position.coords.latitude, position.coords.longitude, true);
             },
             error => Alert.alert('Error', JSON.stringify(error)),
-            {enableHighAccuracy: true, timeout: 20000, maximumAge: 1},
+            {enableHighAccuracy: true, timeout: 20000, maximumAge: 1, distanceFilter: 0},
         );
         this.watchID = Geolocation.watchPosition(async position => {
             const {isFreeMovement} = this.state;
             await this.setCurrentPosition(position.coords.latitude, position.coords.longitude, !isFreeMovement);
-        });
+        }, undefined, {maximumAge: 0, distanceFilter: 0});
     }
 
     async setCurrentPosition(latitude: number, longitude: number, updateCamera: boolean): Promise<void> {
@@ -72,6 +72,7 @@ export default class GeolocationExample extends React.Component<Props, State> {
                     ref={ref => {
                         this.map = ref;
                     }}
+                    showsUserLocation={true}
                     style={styles.container}
                     initialRegion={{
                         latitude: 52.1442625,
@@ -82,7 +83,7 @@ export default class GeolocationExample extends React.Component<Props, State> {
                     mapType='satellite'
                     onTouchStart={this.enableFreeMove}
                 >
-                    <Circle center={{longitude: position.longitude, latitude: position.latitude}} radius={1}
+                    <Circle center={{longitude: position.longitude, latitude: position.latitude}} radius={1} fillColor='red'
                             strokeColor='red'/>
                 </MapView>
                 {isFreeMovement && <View style={styles.buttonContainer}>
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
     bubble: {
         flex: 1,
         backgroundColor: 'white',
-        paddingHorizontal: 18,
+        paddingHorizontal: 22,
         paddingVertical: 12,
         borderRadius: 20,
     },
