@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@react-native-community/geolocation": "^1.4.2",
+    "query-string": "^6.8.1",
     "react": "16.8.6",
     "react-native": "0.60.4",
     "react-native-maps": "0.25.0"
