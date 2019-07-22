@@ -1,7 +1,7 @@
 import React from 'react';
 import {StyleSheet, Text, View, Alert, TouchableOpacity} from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
-import MapView, {Camera, Circle, Polyline, UrlTile} from "react-native-maps";
+import MapView, {Camera, Circle, Marker, Polyline, UrlTile} from "react-native-maps";
 import StreetMapApi from "./helpers/StreetMapApi";
 
 interface Props {
@@ -13,7 +13,8 @@ interface State {
     position: { latitude: number, longitude: number },
     isFreeMovement: boolean,
     streets: any[][],
-    pointsOfClosestStreetOnTheLeft: any[],
+    pointsOfClosestStreetOnTheLeft: {lat: number, lon: number}[],
+    pointsOfCurrentStreet: {lat: number, lon: number}[],
 }
 
 export default class GeolocationExample extends React.Component<Props, State> {
@@ -22,6 +23,7 @@ export default class GeolocationExample extends React.Component<Props, State> {
         isFreeMovement: false,
         streets: [],
         pointsOfClosestStreetOnTheLeft: [],
+        pointsOfCurrentStreet: []
     };
 
     watchID: number = 0;
@@ -32,8 +34,6 @@ export default class GeolocationExample extends React.Component<Props, State> {
 
         Geolocation.getCurrentPosition(async position => {
                 await this.setCurrentPosition(position.coords.latitude, position.coords.longitude, true);
-
-
             },
             error => Alert.alert('Error', JSON.stringify(error)),
             {enableHighAccuracy: true, timeout: 20000, maximumAge: 1, distanceFilter: 0},
@@ -42,8 +42,10 @@ export default class GeolocationExample extends React.Component<Props, State> {
             const {isFreeMovement} = this.state;
             await this.setCurrentPosition(position.coords.latitude, position.coords.longitude, !isFreeMovement);
 
-            const pointsOfClosestStreetOnTheLeft = await streetMapApi.getPointsOfClosestStreetOnTheLeft(position.coords.latitude, position.coords.longitude);
-            this.setState({pointsOfClosestStreetOnTheLeft});
+            const pointsOfCurrentStreet = await streetMapApi.getCurrentStreet(position.coords.latitude, position.coords.longitude);
+            const pointsOfClosestStreetOnTheLeft = await streetMapApi.getPointsOfClosestStreetOnTheLeft(position.coords.latitude, position.coords.longitude, pointsOfCurrentStreet);
+
+            this.setState({pointsOfClosestStreetOnTheLeft, pointsOfCurrentStreet});
         }, undefined, {maximumAge: 0, distanceFilter: 0});
 
 
@@ -78,9 +80,9 @@ export default class GeolocationExample extends React.Component<Props, State> {
     }
 
     render() {
-        const {position, isFreeMovement, streets, pointsOfClosestStreetOnTheLeft} = this.state;
+        const {position, isFreeMovement, pointsOfCurrentStreet, pointsOfClosestStreetOnTheLeft} = this.state;
 
-
+        const colors = ['Chocolate', 'BlueViolet', 'Cyan', 'Indigo', 'Navy', 'Orange', 'Salmon', 'SteelBlue', 'Thistle', 'WhiteSmoke', 'SpringGreen'];
 
         const roadStart: any | null = pointsOfClosestStreetOnTheLeft.length > 0 ? pointsOfClosestStreetOnTheLeft[0] : null;
 
@@ -90,7 +92,6 @@ export default class GeolocationExample extends React.Component<Props, State> {
                     ref={ref => {
                         this.map = ref;
                     }}
-                    showsUserLocation={true}
                     style={styles.container}
                     initialRegion={{
                         latitude: 52.1442625,
@@ -101,14 +102,33 @@ export default class GeolocationExample extends React.Component<Props, State> {
                     onTouchStart={this.enableFreeMove}
                 >
                     <UrlTile urlTemplate={'http://c.tile.openstreetmap.org/{z}/{x}/{y}.png'}/>
-                    <Circle center={{longitude: position.longitude, latitude: position.latitude}} radius={1} fillColor='red'
-                            strokeColor='red'/>
 
-                    {pointsOfClosestStreetOnTheLeft.map((point: any) => {
-                        return <Circle center={{longitude: point.lon, latitude: point.lat}} radius={1} fillColor='indigo'/>
+                    <Marker
+                        coordinate={{longitude: position.longitude, latitude: position.latitude}}
+                        title={"long:" + position.longitude + " lat: " + position.latitude}
+                        pinColor={'#702459'}
+                    />
+
+
+                    {pointsOfClosestStreetOnTheLeft.map((pos: any, index: number) => {
+                        return <Marker
+                            coordinate={{longitude: pos.lon, latitude: pos.lat}}
+                            title={"long:" + pos.lon + " lat: " + pos.lat}
+                            pinColor={'red'}
+                        />
                     })}
-                    
-                    {roadStart !== null && <Polyline coordinates={[position, {longitude: roadStart.lon, latitude: roadStart.lat}]} />}
+
+                    {pointsOfCurrentStreet.map((pos: any, index: number) => {
+                        return <Marker
+                            coordinate={{longitude: pos.lon, latitude: pos.lat}}
+                            title={"long:" + pos.lon + " lat: " + pos.lat}
+                            pinColor={'purple'}
+                        />
+                    })}
+
+
+                    {roadStart !== null &&
+                    <Polyline coordinates={[position, {longitude: roadStart.lon, latitude: roadStart.lat}]}/>}
                 </MapView>
                 {isFreeMovement && <View style={styles.buttonContainer}>
                     <TouchableOpacity

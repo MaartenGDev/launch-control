@@ -1,11 +1,13 @@
 import querystring from 'query-string';
+import GeoHelper from "./GeoHelper";
+import {Coordinate} from "../models/Coordinate";
 
 export default class StreetMapApi {
     lastBoundingBox: number[] = [];
-    streetsCache: number[][] = [];
+    streetsCache: {lat: number, lon: number}[][] = [];
 
-    public async getStreetsCloseToLocation(latitude: number, longitude: number) {
-        const radiusInMeters = 200;
+    public async getStreetsCloseToLocation(latitude: number, longitude: number): Promise<Coordinate[][]> {
+        const radiusInMeters = 500;
         const sideOffsetFromCenter = 360 * radiusInMeters / 40075000;
 
         if(this.lastBoundingBox.length > 0 && latitude >= this.lastBoundingBox[0] && latitude <= this.lastBoundingBox[2] && longitude >= this.lastBoundingBox[1] && longitude <= this.lastBoundingBox[3]){
@@ -58,15 +60,60 @@ out skel qt;
         }).filter((x: any) => x.length > 0);
     }
 
-    public async getPointsOfClosestStreetOnTheLeft(latitude: number, longitude: number): Promise<any[]> {
+    public async getPointsOfClosestStreetOnTheLeft(latitude: number, longitude: number, pointsOfCurrentStreet: Coordinate[]): Promise<Coordinate[]> {
         const streetsCloseToLocation = await this.getStreetsCloseToLocation(latitude, longitude);
 
-        const streetsOnTheLeftSide = streetsCloseToLocation.filter((pointsInStreet: any[])=> {
-            const endPoint = pointsInStreet.sort((a: any, b: any) => a.lon - b.lon)[0];
+        const streetsOnTheLeftSide = streetsCloseToLocation.filter((pointsInStreet)=> {
+            // get lowest lat
+            const endPoint = pointsInStreet.sort((a, b) => b.lat - a.lat)[0];
 
-            return endPoint.lon < longitude;
+            // If the street doesn't connect to the current street, ignore
+            if(!pointsInStreet.some(p => pointsOfCurrentStreet.some(possiblePoint => possiblePoint.lat === p.lat && possiblePoint.lon === p.lon))){
+                return false;
+            }
+
+            return endPoint.lat > latitude && endPoint.lon > longitude;
         });
 
-        return streetsOnTheLeftSide.length > 0 ? streetsOnTheLeftSide[0] : [];
+        return streetsOnTheLeftSide.length > 0 ? streetsOnTheLeftSide.sort((a: any, b: any) => {
+            return a[0].lat - b[0].lat
+        })[0] : [];
+    }
+
+
+    public async getCurrentStreet(latitude: number, longitude: number): Promise<Coordinate[]> {
+        const streetsCloseToLocation = await this.getStreetsCloseToLocation(latitude, longitude);
+
+        let closestDistance = undefined;
+        let closestPointsInStreet: {lat: number, lon: number, distance?: number}[] = [];
+
+        for (const pointsInStreet of streetsCloseToLocation) {
+            const furthestPoint: any = pointsInStreet[0];
+            const lowestPoint: any = pointsInStreet[pointsInStreet.length - 1];
+
+            console.log('lowest:' + lowestPoint.lat, ' highest:' + furthestPoint.lat)
+
+            const curve = (furthestPoint.lon - lowestPoint.lon) / (furthestPoint.lat - lowestPoint.lat)
+
+            // road doesn't stops or starts after the provided location
+            if(lowestPoint.lat > latitude || furthestPoint.lat < latitude){
+                continue;
+            }
+
+            const difference = latitude - lowestPoint.lat;
+
+            const newLat: number = latitude;
+            const newLong: number = lowestPoint.lon + (difference * curve);
+
+            const distance = GeoHelper.distance({lat: latitude, lon: longitude}, {lat: newLat, lon: newLong});
+
+            if(closestDistance === undefined || closestDistance > distance){
+                closestDistance = distance;
+                closestPointsInStreet = pointsInStreet;
+            }
+        }
+
+
+        return closestPointsInStreet;
     }
 }
