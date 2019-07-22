@@ -1,8 +1,10 @@
 import React from 'react';
 import {StyleSheet, Text, View, Alert, TouchableOpacity} from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
-import MapView, {Camera, Circle, Marker, Polyline, UrlTile} from "react-native-maps";
+import MapView, {Camera, Circle, Marker, Polygon, Polyline, UrlTile} from "react-native-maps";
 import StreetMapApi from "./helpers/StreetMapApi";
+import {Coordinate} from "./models/Coordinate";
+import GeoHelper from "./helpers/GeoHelper";
 
 interface Props {
     latitude: number,
@@ -30,7 +32,6 @@ export default class GeolocationExample extends React.Component<Props, State> {
     map: MapView | null = null;
 
     async componentDidMount() {
-        const streetMapApi = new StreetMapApi();
 
         Geolocation.getCurrentPosition(async position => {
                 await this.setCurrentPosition(position.coords.latitude, position.coords.longitude, true);
@@ -41,18 +42,16 @@ export default class GeolocationExample extends React.Component<Props, State> {
         this.watchID = Geolocation.watchPosition(async position => {
             const {isFreeMovement} = this.state;
             await this.setCurrentPosition(position.coords.latitude, position.coords.longitude, !isFreeMovement);
-
-            const pointsOfCurrentStreet = await streetMapApi.getCurrentStreet(position.coords.latitude, position.coords.longitude);
-            const pointsOfClosestStreetOnTheLeft = await streetMapApi.getPointsOfClosestStreetOnTheLeft(position.coords.latitude, position.coords.longitude, pointsOfCurrentStreet);
-
-            this.setState({pointsOfClosestStreetOnTheLeft, pointsOfCurrentStreet});
         }, undefined, {maximumAge: 0, distanceFilter: 0});
-
-
     }
 
     async setCurrentPosition(latitude: number, longitude: number, updateCamera: boolean): Promise<void> {
-        this.setState({position: {latitude, longitude}});
+        const streetMapApi = new StreetMapApi();
+
+        const pointsOfCurrentStreet = await streetMapApi.getCurrentStreet(latitude, longitude);
+        const pointsOfClosestStreetOnTheLeft = await streetMapApi.getPointsOfClosestStreetOnTheLeft(latitude, longitude, pointsOfCurrentStreet);
+
+        this.setState({pointsOfClosestStreetOnTheLeft, pointsOfCurrentStreet, position: {latitude, longitude}});
 
         if (!updateCamera || this.map === null) {
             return;
@@ -63,7 +62,7 @@ export default class GeolocationExample extends React.Component<Props, State> {
         camera.center.latitude = latitude;
 
 
-        this.map.setCamera(camera);
+        this.map.animateCamera(camera, {duration: 300});
     }
 
     enableFreeMove = () => this.setState({isFreeMovement: true});
@@ -84,7 +83,8 @@ export default class GeolocationExample extends React.Component<Props, State> {
 
         const colors = ['Chocolate', 'BlueViolet', 'Cyan', 'Indigo', 'Navy', 'Orange', 'Salmon', 'SteelBlue', 'Thistle', 'WhiteSmoke', 'SpringGreen'];
 
-        const roadStart: any | null = pointsOfClosestStreetOnTheLeft.length > 0 ? pointsOfClosestStreetOnTheLeft[0] : null;
+        const roadStart: Coordinate | undefined = pointsOfClosestStreetOnTheLeft.length > 0 ? pointsOfClosestStreetOnTheLeft[pointsOfClosestStreetOnTheLeft.length -1] : undefined;
+        const roadEnd = GeoHelper.getNodeClosestToDistance(pointsOfClosestStreetOnTheLeft, 20);
 
         return (
             <View style={styles.container}>
@@ -106,12 +106,13 @@ export default class GeolocationExample extends React.Component<Props, State> {
                     <Marker
                         coordinate={{longitude: position.longitude, latitude: position.latitude}}
                         title={"long:" + position.longitude + " lat: " + position.latitude}
-                        pinColor={'#702459'}
+                        pinColor={'cyan'}
                     />
 
 
                     {pointsOfClosestStreetOnTheLeft.map((pos: any, index: number) => {
                         return <Marker
+                            key={pos.id}
                             coordinate={{longitude: pos.lon, latitude: pos.lat}}
                             title={"long:" + pos.lon + " lat: " + pos.lat}
                             pinColor={'red'}
@@ -120,15 +121,16 @@ export default class GeolocationExample extends React.Component<Props, State> {
 
                     {pointsOfCurrentStreet.map((pos: any, index: number) => {
                         return <Marker
+                            key={pos.id}
                             coordinate={{longitude: pos.lon, latitude: pos.lat}}
                             title={"long:" + pos.lon + " lat: " + pos.lat}
                             pinColor={'purple'}
                         />
                     })}
 
-
-                    {roadStart !== null &&
-                    <Polyline coordinates={[position, {longitude: roadStart.lon, latitude: roadStart.lat}]}/>}
+                    {roadEnd !== undefined && <Polygon fillColor='rgba(160,174,192, 0.4)' coordinates={[position, {longitude: roadStart!.lon, latitude: roadStart!.lat}, {longitude: roadEnd!.lon, latitude: roadEnd!.lat}]} />}
+                    {roadEnd !== undefined &&
+                    <Polyline coordinates={[position, {longitude: roadEnd!.lon, latitude: roadEnd!.lat}]}/>}
                 </MapView>
                 {isFreeMovement && <View style={styles.buttonContainer}>
                     <TouchableOpacity

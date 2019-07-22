@@ -2,9 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:../../../../Downloads/run.gpx">
-   </FileRef>
-   <FileRef
       location = "group:LaunchControl.xcodeproj">
    </FileRef>
    <FileRef

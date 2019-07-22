@@ -20,4 +20,29 @@ export default class GeoHelper {
     static toRadians(number: number){
         return number * Math.PI / 180;
     }
+
+    static getNodeClosestToDistance(coordinates: Coordinate[], distanceInMeters: number): Coordinate | undefined {
+        if(coordinates.length === 0) return undefined;
+
+        if(coordinates.length < 2) return coordinates[0];
+
+        const startNode = coordinates[0];
+        let totalDistance = 0;
+
+
+        let index = 1;
+
+        for (const coordinate of coordinates.slice(1)) {
+            const distance = GeoHelper.distance(startNode, coordinate);
+
+            if(totalDistance + distance > distanceInMeters){
+                return coordinates[index - 1];
+            }
+
+            index++;
+        }
+
+        return coordinates[0];
+
+    }
 }
